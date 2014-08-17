@@ -1,0 +1,67 @@
+---
+title: "Impact of storms on health and economics across the United States"
+author: "Torben Griebe"
+date: "17. August 2014"
+output: html_document
+---
+
+Impact of storms on health and economics across the United States
+=================================================================
+
+Synopsis
+--------
+
+Data loading and processing
+---------------------------
+The necessary 
+[storm data](https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2FStormData.csv.bz2) 
+was obtained from the U.S. National Oceanic and Atmospheric Administration's 
+storm database and stored into a subfolder named `data`.
+```{r}
+file.name <- "data/repdata_data_StormData.csv.bz2"
+url <- https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2FStormData.csv.bz2
+if (!file.exists(file.name)) {
+  dir.create("data")
+  # OS dependencies
+  switch(Sys.info()[['sysname']],
+         Windows = {download.file(url, file.name)},
+         Darwin = {download.file(url, file.name, method="curl")})
+}
+```
+The events in the downloaded data file start in the year 1950 and end in 
+November 2011.
+
+### Reading in the data
+In a first step, the raw data obtained in the previous step was read in. The 
+file was compressed using the format "bz2". The data in the uncompressed file
+is a comma separated file. The first row is a header line. Missing values are
+simply left out.
+```{r, cache=TRUE}
+storm.data <- read.csv(file.name, na.strings="")
+```
+After reading in the data, the number of observations and variables are obtained
+to get a first insight in the data available. 
+```{r}
+dim(storm.data)
+```
+
+### Relevant variables
+To get an idea of the relevant variables, the structure of the data is examined
+in combination with the National Weather Service 
+[Storm Data Documentation (SDD)](https://d396qusza40orc.cloudfront.net/repdata%2Fpeer2_doc%2Fpd01016005curr.pdf) which was provided as part of the peer assessment 2 description of 
+the Coursera "Reproducible Research" course.
+```{r}
+str(storm.data)
+```
+As stated in chapter 2.6 of the SDD and in reconciliation with the 
+variable names, the variables `INJURIES` and `FATALITIES` together specifiy the
+impact on the population health.
+
+Additionally the variables `PROPDMG`, `PROPDMGEXP`, `CROPDMG` and `CROPDMGEXP`
+describe the economic consequences (see chapter 2.7 of the SDD)
+
+### Processing data
+
+Results
+-------
+
