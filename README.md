@@ -1,4 +1,4 @@
-Investigation into impact of storm on health and economic consequences. 
+Investigation into impact of storms on health and economic consequences across the United States. 
 =======================================================================
 
 Peer assessment 2 of Coursera course "Reproducible Research".
