@@ -10,12 +10,20 @@ Impact of storms on health and economics across the United States
 
 Synopsis
 --------
+This report tries to find the impact of different storm events on population
+health and economics across the United States. The storm data provided by the
+U.S. National Oceanic and Atmospheric Administration is used to identify:
+
+* the most harmful events with respect to population health and
+* the events with the greatest economic consequences. 
+
+???TODO???
 
 Data loading and processing
 ---------------------------
 The necessary 
 [storm data](https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2FStormData.csv.bz2) 
-was obtained from the U.S. National Oceanic and Atmospheric Administration's 
+is obtained from the U.S. National Oceanic and Atmospheric Administration's 
 storm database and stored into a subfolder named `data`.
 ```{r}
 file.name <- "data/repdata_data_StormData.csv.bz2"
@@ -32,10 +40,8 @@ The events in the downloaded data file start in the year 1950 and end in
 November 2011.
 
 ### Reading in the data
-In a first step, the raw data obtained in the previous step was read in. The 
-file was compressed using the format "bz2". The data in the uncompressed file
-is a comma separated file. The first row is a header line. Missing values are
-simply left out.
+In a first step, the raw data obtained in the previous step is read in. 
+The data in the uncompressed file is a comma separated file. The first row is a header line. Missing values are simply left out. 
 ```{r, cache=TRUE}
 storm.data <- read.csv(file.name, na.strings="")
 ```
@@ -44,12 +50,14 @@ to get a first insight in the data available.
 ```{r}
 dim(storm.data)
 ```
+As stated, there are 902297 observations of 37 different variables.
 
 ### Relevant variables
 To get an idea of the relevant variables, the structure of the data is examined
 in combination with the National Weather Service 
-[Storm Data Documentation (SDD)](https://d396qusza40orc.cloudfront.net/repdata%2Fpeer2_doc%2Fpd01016005curr.pdf) which was provided as part of the peer assessment 2 description of 
-the Coursera "Reproducible Research" course.
+[Storm Data Documentation](https://d396qusza40orc.cloudfront.net/repdata%2Fpeer2_doc%2Fpd01016005curr.pdf)
+(from here on out called "SSD") which was provided as part of the 
+peer assessment 2 description of the Coursera "Reproducible Research" course.
 ```{r}
 str(storm.data)
 ```
@@ -60,7 +68,105 @@ impact on the population health.
 Additionally the variables `PROPDMG`, `PROPDMGEXP`, `CROPDMG` and `CROPDMGEXP`
 describe the economic consequences (see chapter 2.7 of the SDD)
 
-### Processing data
+The last variable needed is named `EVTYPE` as stated in the description of the
+peer assessement.
+
+### Processing health and economics data
+
+To investigate the two questions, two separate sub-datasets will be created and
+separately examined. But before that, the common variable `EVTYPE` is analyzed.
+
+#### Processing common data
+After a first look at the values of `EVTYPE` (the values won't be displayed 
+here to retain clearness) it turns out, that the values are string formatted. 
+Furthermore some of them contains leading or double whitespaces 
+or consist of only capital letters. Some of them contain abbreviated words like
+"TSTM" for "thunderstorm" or are written in plural or singular.
+To simplify the future usage of this variable, unnecessary whitespaces are 
+stripped and all letters are converted to lowercase. Additionally, 
+nondescriptive characters like slashes or dashes are deleted and the 
+abbreviation "tstm" is written out. To delete plural suffixes, all 
+"s"-characters at the end of the string are deleted. 
+These actions remove some duplicated event types. 
+```{r}
+num.of.levels = length(levels(storm.data$EVTYPE))
+storm.data$EVTYPE = tolower(gsub("[&[:punct:]]", " ", 
+                                 storm.data$EVTYPE, perl=TRUE))
+storm.data$EVTYPE = gsub("^[[:space:]]*(.*?)[[:space:]]*$", "\\1", 
+                         storm.data$EVTYPE, perl=TRUE)
+storm.data$EVTYPE = gsub("[[:space:]]{2,}", " ", 
+                         storm.data$EVTYPE, perl=TRUE)
+storm.data$EVTYPE = factor(gsub("tstm", "thunderstorm", storm.data$EVTYPE))
+cat(sprintf("Deleted %d duplicates", 
+            num.of.levels - length(levels(storm.data$EVTYPE))))
+```
+There are many more posibilities to consolidate the event types, e.g.: 
+
+* Correction of typing errors
+* Writing out more abbreviations
+* Removing plural suffixes
+* Contextual merging
+
+But due to shortage of time, this isn't part of this report. But in my opinion,
+it is definetly an issue for further researches.
+
+#### Processing health data
+```{r}
+health.data <- storm.data[, c("EVTYPE", "FATALITIES", "INJURIES")]
+```
+To get an overview of the data, a short summary is displayed.
+```{r}
+summary(health.data)
+```
+The variables `FATALITIES` and `INJURIES` contain only valid values. There are
+no NA-values or negative numbers. No further processing is necessary. 
+
+#### Processing economics data
+```{r}
+economics.data <- storm.data[, c("EVTYPE", "PROPDMG", "PROPDMGEXP", 
+                                 "CROPDMG", "CROPDMGEXP")]
+```
+As before, a short summary is displayed for an overview of the data.
+```{r}
+summary(economics.data)
+```
+First of all the variables `PROPDMG` and `CROPDMG` contain no NA-values or 
+negative numbers. But the corresponding two variables `PROPDMGEXP` and 
+`CROPDMGEXP` representing the magnitude numbers seem to contain some undefined
+and invalid values. As the SDD specifies, these values should only contain the
+characters "K", "M" or "B" (see SDD, chapter 2.7).
+
+Therefore a closer look at these to variables is required.
+On a first try it is checked, if there is any damage specified with no (i.e. NA)
+magnitude number.
+```{r}
+sum(economics.data$PROPDMG)
+sum(economics.data$PROPDMG[is.na(economics.data$PROPDMGEXP)])
+sum(economics.data$CROPDMG)
+sum(economics.data$CROPDMG[is.na(economics.data$CROPDMGEXP)])
+```
+Overall these observations can be ignored in further calculations 
+because of there extremly small ratio.
+
+
+Now the invalid magnitude numbers are inspected.
+```{r}
+levels(economics.data$PROPDMGEXP)
+levels(economics.data$CROPDMGEXP)
+```
+Some of the allowed values are present both in upper and lower case letters. 
+This issue is solved by converting all values to lower case.
+```{r}
+economics.data$PROPDMGEXP <- factor(tolower(economics.data$PROPDMGEXP))
+economics.data$CROPDMGEXP <- factor(tolower(economics.data$CROPDMGEXP))
+```
+To get an idea of what to do with the other values, the relative occurrence of
+them in respect to the entire data is analyzed.
+```{r}
+mean(!is.na(economics.data$PROPDMGEXP) & !economics.data$PROPDMGEXP %in% c("b", "k", "m"), na.rm=TRUE)
+mean(!economics.data$CROPDMGEXP %in% c("b", "k", "m"), na.rm=TRUE)
+```
+
 
 Results
 -------
