@@ -236,6 +236,6 @@ The aggregated data is now ordered decreasing by the amount of damage.
 ```{r}
 health.impact <- health.impact[order(health.impact$health.damage, 
                                      decreasing=TRUE), ]
-economics.impact <- economics.impact[order(economics.impact$health.damage, 
+economics.impact <- economics.impact[order(economics.impact$economics.damage, 
                                            decreasing=TRUE), ]
 ```
