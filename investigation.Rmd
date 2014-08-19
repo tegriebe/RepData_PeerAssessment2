@@ -42,7 +42,7 @@ November 2011.
 ### Reading in the data
 In a first step, the raw data obtained in the previous step is read in. 
 The data in the uncompressed file is a comma separated file. The first row is a header line. Missing values are simply left out. 
-```{r, cache=TRUE}
+```{r}
 storm.data <- read.csv(file.name, na.strings="")
 ```
 After reading in the data, the number of observations and variables are obtained
@@ -78,15 +78,15 @@ separately examined. But before that, the common variable `EVTYPE` is analyzed.
 
 #### Processing common data
 After a first look at the values of `EVTYPE` (the values won't be displayed 
-here to retain clearness) it turns out, that the values are string formatted. 
+here so the report doesn't get overfilled) it turns out, that the values 
+are string formatted. 
 Furthermore some of them contains leading or double whitespaces 
 or consist of only capital letters. Some of them contain abbreviated words like
 "TSTM" for "thunderstorm" or are written in plural or singular.
 To simplify the future usage of this variable, unnecessary whitespaces are 
 stripped and all letters are converted to lowercase. Additionally, 
 nondescriptive characters like slashes or dashes are deleted and the 
-abbreviation "tstm" is written out. To delete plural suffixes, all 
-"s"-characters at the end of the string are deleted. 
+abbreviation "tstm" is written out. 
 These actions remove some duplicated event types. 
 ```{r}
 num.of.levels = length(levels(storm.data$EVTYPE))
@@ -136,6 +136,7 @@ negative numbers. But the corresponding two variables `PROPDMGEXP` and
 and invalid values. As the SDD specifies, these values should only contain the
 characters "K", "M" or "B" (see SDD, chapter 2.7).
 
+
 Therefore a closer look at these to variables is required.
 On a first try it is checked, if there is any damage specified with no (i.e. NA)
 magnitude number.
@@ -161,12 +162,44 @@ economics.data$PROPDMGEXP <- factor(tolower(economics.data$PROPDMGEXP))
 economics.data$CROPDMGEXP <- factor(tolower(economics.data$CROPDMGEXP))
 ```
 To get an idea of what to do with the other values, the relative occurrence of
-them in respect to the entire data is analyzed.
+them in respect to the occurences of the valid values is analyzed.
 ```{r}
-mean(!is.na(economics.data$PROPDMGEXP) & !economics.data$PROPDMGEXP %in% c("b", "k", "m"), na.rm=TRUE)
-mean(!economics.data$CROPDMGEXP %in% c("b", "k", "m"), na.rm=TRUE)
+mean(!economics.data$PROPDMGEXP[!is.na(economics.data$PROPDMGEXP)] 
+     %in% c("b", "k", "m"))
+mean(!economics.data$CROPDMGEXP[!is.na(economics.data$CROPDMGEXP)] 
+     %in% c("b", "k", "m"))
+```
+The ratio is small enough to ignore the invalid values.
+
+
+Now, the damage represented by the variable `...DMG` and the 
+alphabetical magnitude variable `...DMGEXP` can be converted into actual 
+damage values. The calculated damage values are stored
+in the corresponding variable `...DMG` again.
+```{r}
+economics.data$PROPDMG <- apply(economics.data[, c("PROPDMG", "PROPDMGEXP")],
+                                1, function(x) {
+                                  switch(x[2],
+                                         k={as.numeric(x[1]) * 10^3},
+                                         m={as.numeric(x[1]) * 10^6},
+                                         b={as.numeric(x[1]) * 10^9},
+                                         {as.numeric(x[1])})
+                                  })
+economics.data$CROPDMG <- apply(economics.data[, c("CROPDMG", "CROPDMGEXP")],
+                                1, function(x) {
+                                  switch(x[2],
+                                         k={as.numeric(x[1]) * 10^3},
+                                         m={as.numeric(x[1]) * 10^6},
+                                         b={as.numeric(x[1]) * 10^9},
+                                         {as.numeric(x[1])})
+                                  })
 ```
 
+In a last step, the overall damage values are stored into a new variable
+called `DMG`.
+```{r}
+economics.data$DMG <- rowSums(economics.data[, c("PROPDMG", "CROPDMG")])
+```
 
 Results
 -------
