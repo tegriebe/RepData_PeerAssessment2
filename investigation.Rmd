@@ -113,38 +113,52 @@ it is definetly an issue for further researches.
 #### Processing health data
 ```{r}
 health.data <- storm.data[, c("EVTYPE", "FATALITIES", "INJURIES")]
+names(health.data) <- c("event.type", "fatalities", "injuries")
 ```
 To get an overview of the data, a short summary is displayed.
 ```{r}
 summary(health.data)
 ```
-The variables `FATALITIES` and `INJURIES` contain only valid values. There are
-no NA-values or negative numbers. No further processing is necessary. 
+The variables `fatalities` and `injuries` contain only valid values. There are
+no NA-values or negative numbers. 
+
+In this report, fatalities and injuries are combined to one value called 
+`health.damage`. 
+```{r}
+health.data$health.damage <- rowSums(health.data[, c("fatalities", "injuries")])
+```
+For another more in-depth research, they should be kept 
+separate or they should be weighted differently before they are summed up. 
+At least in my opinion a fatality is more severe than only an injury.
 
 #### Processing economics data
 ```{r}
 economics.data <- storm.data[, c("EVTYPE", "PROPDMG", "PROPDMGEXP", 
                                  "CROPDMG", "CROPDMGEXP")]
+names(economics.data) <- c("event.type", 
+                           "property.damage", "property.magnitude.char",
+                           "crop.damage", "crop.magnitude.char")
 ```
 As before, a short summary is displayed for an overview of the data.
 ```{r}
 summary(economics.data)
 ```
-First of all the variables `PROPDMG` and `CROPDMG` contain no NA-values or 
-negative numbers. But the corresponding two variables `PROPDMGEXP` and 
-`CROPDMGEXP` representing the magnitude numbers seem to contain some undefined
-and invalid values. As the SDD specifies, these values should only contain the
-characters "K", "M" or "B" (see SDD, chapter 2.7).
+First of all the variables `property.damage` and `crop.damage` contain no
+NA-values or negative numbers. But the corresponding two variables 
+`property.magnitude.char` and `crop.magnitude.char` representing the
+magnitude numbers seem to contain some undefined and invalid values. As the SDD
+specifies, these values should only contain the characters "K", "M" or "B" 
+(see SDD, chapter 2.7).
 
 
 Therefore a closer look at these to variables is required.
 On a first try it is checked, if there is any damage specified with no (i.e. NA)
 magnitude number.
 ```{r}
-sum(economics.data$PROPDMG)
-sum(economics.data$PROPDMG[is.na(economics.data$PROPDMGEXP)])
-sum(economics.data$CROPDMG)
-sum(economics.data$CROPDMG[is.na(economics.data$CROPDMGEXP)])
+sum(economics.data$property.damage)
+sum(economics.data$property.damage[is.na(economics.data$property.magnitude.char)])
+sum(economics.data$crop.damage)
+sum(economics.data$crop.damage[is.na(economics.data$crop.magnitude.char)])
 ```
 Overall these observations can be ignored in further calculations 
 because of there extremly small ratio.
@@ -152,55 +166,76 @@ because of there extremly small ratio.
 
 Now the invalid magnitude numbers are inspected.
 ```{r}
-levels(economics.data$PROPDMGEXP)
-levels(economics.data$CROPDMGEXP)
+levels(economics.data$property.magnitude.char)
+levels(economics.data$crop.magnitude.char)
 ```
 Some of the allowed values are present both in upper and lower case letters. 
 This issue is solved by converting all values to lower case.
 ```{r}
-economics.data$PROPDMGEXP <- factor(tolower(economics.data$PROPDMGEXP))
-economics.data$CROPDMGEXP <- factor(tolower(economics.data$CROPDMGEXP))
+economics.data$property.magnitude.char <- 
+  factor(tolower(economics.data$property.magnitude.char))
+economics.data$crop.magnitude.char <- 
+  factor(tolower(economics.data$crop.magnitude.char))
 ```
 To get an idea of what to do with the other values, the relative occurrence of
 them in respect to the occurences of the valid values is analyzed.
 ```{r}
-mean(!economics.data$PROPDMGEXP[!is.na(economics.data$PROPDMGEXP)] 
-     %in% c("b", "k", "m"))
-mean(!economics.data$CROPDMGEXP[!is.na(economics.data$CROPDMGEXP)] 
-     %in% c("b", "k", "m"))
+mean(!economics.data$property.magnitude.char[
+  !is.na(economics.data$property.magnitude.char)] %in% c("b", "k", "m"))
+mean(!economics.data$crop.magnitude.char[
+  !is.na(economics.data$crop.magnitude.char)] %in% c("b", "k", "m"))
 ```
 The ratio is small enough to ignore the invalid values.
 
 
-Now, the damage represented by the variable `...DMG` and the 
-alphabetical magnitude variable `...DMGEXP` can be converted into actual 
-damage values. The calculated damage values are stored
-in the corresponding variable `...DMG` again.
+Now, the damage represented by the variable `[...].damage` and the 
+alphabetical magnitude variable `[...].magnitude.char` can be converted into 
+actual damage values. The calculated damage values are stored
+in the corresponding variable `[...].damage` again.
 ```{r}
-economics.data$PROPDMG <- apply(economics.data[, c("PROPDMG", "PROPDMGEXP")],
-                                1, function(x) {
-                                  switch(x[2],
-                                         k={as.numeric(x[1]) * 10^3},
-                                         m={as.numeric(x[1]) * 10^6},
-                                         b={as.numeric(x[1]) * 10^9},
-                                         {as.numeric(x[1])})
-                                  })
-economics.data$CROPDMG <- apply(economics.data[, c("CROPDMG", "CROPDMGEXP")],
-                                1, function(x) {
-                                  switch(x[2],
-                                         k={as.numeric(x[1]) * 10^3},
-                                         m={as.numeric(x[1]) * 10^6},
-                                         b={as.numeric(x[1]) * 10^9},
-                                         {as.numeric(x[1])})
-                                  })
+economics.data$property.damage <- 
+  apply(economics.data[, c("property.damage", "property.magnitude.char")],
+        1, function(x) {          
+          switch(x[2],
+                 k={as.numeric(x[1]) * 10^3},
+                 m={as.numeric(x[1]) * 10^6},
+                 b={as.numeric(x[1]) * 10^9},
+                 {as.numeric(x[1])})
+          })
+economics.data$crop.damage <- 
+  apply(economics.data[, c("crop.damage", "crop.magnitude.char")],
+        1, function(x) {
+          switch(x[2],
+                 k={as.numeric(x[1]) * 10^3},
+                 m={as.numeric(x[1]) * 10^6},
+                 b={as.numeric(x[1]) * 10^9},
+                 {as.numeric(x[1])})
+          })
 ```
 
 In a last step, the overall damage values are stored into a new variable
-called `DMG`.
+called `economics.damage`.
 ```{r}
-economics.data$DMG <- rowSums(economics.data[, c("PROPDMG", "CROPDMG")])
+economics.data$economics.damage <- 
+  rowSums(economics.data[, c("property.damage", "crop.damage")])
 ```
 
 Results
 -------
+After the data loading and processing, the results can be created. Therefore
+the injuries and fatalities, as well as the economic damage are aggregated
+by the event type.
+```{r}
+health.impact <- aggregate(health.damage ~ event.type, 
+                           health.data, sum)
+economics.impact <- aggregate(economics.damage ~ event.type, 
+                              economics.data, sum)
+```
 
+The aggregated data is now ordered decreasing by the amount of damage.
+```{r}
+health.impact <- health.impact[order(health.impact$health.damage, 
+                                     decreasing=TRUE), ]
+economics.impact <- economics.impact[order(economics.impact$health.damage, 
+                                           decreasing=TRUE), ]
+```
