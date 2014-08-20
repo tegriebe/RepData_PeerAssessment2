@@ -61,8 +61,6 @@ if (window.hljs && document.readyState && document.readyState === "complete") {
 </div>
 
 
-<div id="impact-of-storms-on-health-and-economics-across-the-united-states" class="section level1">
-<h1>Impact of storms on health and economics across the United States</h1>
 <div id="synopsis" class="section level2">
 <h2>Synopsis</h2>
 <p>This report tries to find the impact of different storm events on population health and economics across the United States. The storm data provided by the U.S. National Oceanic and Atmospheric Administration is used to identify:</p>
@@ -70,7 +68,7 @@ if (window.hljs && document.readyState && document.readyState === "complete") {
 <li>the most harmful events with respect to population health and</li>
 <li>the events with the greatest economic consequences.</li>
 </ul>
-<p>???TODO???</p>
+<p>The results show, that</p>
 </div>
 <div id="data-loading-and-processing" class="section level2">
 <h2>Data loading and processing</h2>
@@ -140,35 +138,459 @@ if (!file.exists(file.name)) {
 <p>Additionally the variables <code>PROPDMG</code>, <code>PROPDMGEXP</code>, <code>CROPDMG</code> and <code>CROPDMGEXP</code> describe the economic consequences (see chapter 2.7 of the SDD)</p>
 <p>The last variable needed is named <code>EVTYPE</code> as stated in the description of the peer assessement.</p>
 </div>
+<div id="cleaning-up-health-and-economics-data" class="section level3">
+<h3>Cleaning up health and economics data</h3>
+<p>To investigate the two questions, two separate sub-datasets will be created and separately examined. But before that, the common variable <code>EVTYPE</code> is analyzed.</p>
+<div id="cleaning-up-common-data" class="section level4">
+<h4>Cleaning up common data</h4>
+<p>After a first look at the values of <code>EVTYPE</code> (the values won’t be displayed here so the report doesn’t get overfilled) it turns out, that the values are string formatted. Furthermore some of them contains leading or double whitespaces or consist of only capital letters. Some of them contain abbreviated words like “TSTM” for “thunderstorm” or are written in plural or singular. To simplify the future usage of this variable, unnecessary whitespaces are stripped and all letters are converted to lowercase. Additionally, nondescriptive characters like slashes or dashes are deleted and the abbreviation “tstm” is written out. These actions remove some duplicated event types.</p>
+<pre class="r"><code>num.of.levels = length(levels(storm.data$EVTYPE))
+storm.data$EVTYPE = tolower(gsub(&quot;[&amp;[:punct:]]&quot;, &quot; &quot;, 
+                                 storm.data$EVTYPE, perl=TRUE))
+storm.data$EVTYPE = gsub(&quot;^[[:space:]]*(.*?)[[:space:]]*$&quot;, &quot;\\1&quot;, 
+                         storm.data$EVTYPE, perl=TRUE)
+storm.data$EVTYPE = gsub(&quot;[[:space:]]{2,}&quot;, &quot; &quot;, 
+                         storm.data$EVTYPE, perl=TRUE)
+storm.data$EVTYPE = factor(gsub(&quot;tstm&quot;, &quot;thunderstorm&quot;, storm.data$EVTYPE))
+cat(sprintf(&quot;Deleted %d duplicates&quot;, 
+            num.of.levels - length(levels(storm.data$EVTYPE))))</code></pre>
+<pre><code>## Deleted 157 duplicates</code></pre>
+<p>There are many more posibilities to consolidate the event types, e.g.:</p>
+<ul>
+<li>Correction of typing errors</li>
+<li>Writing out more abbreviations</li>
+<li>Removing plural suffixes</li>
+<li>Contextual merging</li>
+</ul>
+<p>But due to shortage of time, this isn’t part of this report. But in my opinion, it is definetly an issue for further researches.</p>
+</div>
+<div id="cleaning-up-health-data" class="section level4">
+<h4>Cleaning up health data</h4>
+<pre class="r"><code>health.data &lt;- storm.data[, c(&quot;EVTYPE&quot;, &quot;FATALITIES&quot;, &quot;INJURIES&quot;)]
+names(health.data) &lt;- c(&quot;event.type&quot;, &quot;fatalities&quot;, &quot;injuries&quot;)</code></pre>
+<p>To get an overview of the data, a short summary is displayed.</p>
+<pre class="r"><code>summary(health.data)</code></pre>
+<pre><code>##               event.type       fatalities     injuries     
+##  thunderstorm wind :302511   Min.   :  0   Min.   :   0.0  
+##  hail              :288661   1st Qu.:  0   1st Qu.:   0.0  
+##  tornado           : 60652   Median :  0   Median :   0.0  
+##  flash flood       : 54279   Mean   :  0   Mean   :   0.2  
+##  flood             : 25327   3rd Qu.:  0   3rd Qu.:   0.0  
+##  thunderstorm winds: 20859   Max.   :583   Max.   :1700.0  
+##  (Other)           :150008</code></pre>
+<p>The variables <code>fatalities</code> and <code>injuries</code> contain only valid values. There are no NA-values or negative numbers.</p>
+<p>In this report, fatalities and injuries are combined to one value called <code>health.damage</code>.</p>
+<pre class="r"><code>health.data$health.damage &lt;- rowSums(health.data[, c(&quot;fatalities&quot;, &quot;injuries&quot;)])</code></pre>
+<p>For another more in-depth research, they should be kept separate or they should be weighted differently before they are summed up. At least in my opinion a fatality is more severe than only an injury.</p>
+</div>
+<div id="cleaning-up-economics-data" class="section level4">
+<h4>Cleaning up economics data</h4>
+<pre class="r"><code>economics.data &lt;- storm.data[, c(&quot;EVTYPE&quot;, &quot;PROPDMG&quot;, &quot;PROPDMGEXP&quot;, 
+                                 &quot;CROPDMG&quot;, &quot;CROPDMGEXP&quot;)]
+names(economics.data) &lt;- c(&quot;event.type&quot;, 
+                           &quot;property.damage&quot;, &quot;property.magnitude.char&quot;,
+                           &quot;crop.damage&quot;, &quot;crop.magnitude.char&quot;)</code></pre>
+<p>As before, a short summary is displayed for an overview of the data.</p>
+<pre class="r"><code>summary(economics.data)</code></pre>
+<pre><code>##               event.type     property.damage property.magnitude.char
+##  thunderstorm wind :302511   Min.   :   0    K      :424665         
+##  hail              :288661   1st Qu.:   0    M      : 11330         
+##  tornado           : 60652   Median :   0    0      :   216         
+##  flash flood       : 54279   Mean   :  12    B      :    40         
+##  flood             : 25327   3rd Qu.:   0    5      :    28         
+##  thunderstorm winds: 20859   Max.   :5000    (Other):    84         
+##  (Other)           :150008                   NA's   :465934         
+##   crop.damage    crop.magnitude.char
+##  Min.   :  0.0   K      :281832     
+##  1st Qu.:  0.0   M      :  1994     
+##  Median :  0.0   k      :    21     
+##  Mean   :  1.5   0      :    19     
+##  3rd Qu.:  0.0   B      :     9     
+##  Max.   :990.0   (Other):     9     
+##                  NA's   :618413</code></pre>
+<p>First of all the variables <code>property.damage</code> and <code>crop.damage</code> contain no NA-values or negative numbers. But the corresponding two variables <code>property.magnitude.char</code> and <code>crop.magnitude.char</code> representing the magnitude numbers seem to contain some undefined and invalid values. As the SDD specifies, these values should only contain the characters “K”, “M” or “B” (see SDD, chapter 2.7).</p>
+<p>Therefore a closer look at these to variables is required. On a first try it is checked, if there is any damage specified with no (i.e. NA) magnitude number.</p>
+<pre class="r"><code>sum(economics.data$property.damage)</code></pre>
+<pre><code>## [1] 10884500</code></pre>
+<pre class="r"><code>sum(economics.data$property.damage[is.na(economics.data$property.magnitude.char)])</code></pre>
+<pre><code>## [1] 527.4</code></pre>
+<pre class="r"><code>sum(economics.data$crop.damage)</code></pre>
+<pre><code>## [1] 1377827</code></pre>
+<pre class="r"><code>sum(economics.data$crop.damage[is.na(economics.data$crop.magnitude.char)])</code></pre>
+<pre><code>## [1] 11</code></pre>
+<p>Overall these observations can be ignored in further calculations because of there extremly small ratio.</p>
+<p>Now the invalid magnitude numbers are inspected.</p>
+<pre class="r"><code>levels(economics.data$property.magnitude.char)</code></pre>
+<pre><code>##  [1] &quot;-&quot; &quot;?&quot; &quot;+&quot; &quot;0&quot; &quot;1&quot; &quot;2&quot; &quot;3&quot; &quot;4&quot; &quot;5&quot; &quot;6&quot; &quot;7&quot; &quot;8&quot; &quot;B&quot; &quot;h&quot; &quot;H&quot; &quot;K&quot; &quot;m&quot;
+## [18] &quot;M&quot;</code></pre>
+<pre class="r"><code>levels(economics.data$crop.magnitude.char)</code></pre>
+<pre><code>## [1] &quot;?&quot; &quot;0&quot; &quot;2&quot; &quot;B&quot; &quot;k&quot; &quot;K&quot; &quot;m&quot; &quot;M&quot;</code></pre>
+<p>Some of the allowed values are present both in upper and lower case letters. This issue is solved by converting all values to lower case.</p>
+<pre class="r"><code>economics.data$property.magnitude.char &lt;- 
+  factor(tolower(economics.data$property.magnitude.char))
+economics.data$crop.magnitude.char &lt;- 
+  factor(tolower(economics.data$crop.magnitude.char))</code></pre>
+<p>To get an idea of what to do with the other values, the relative occurrence of them in respect to the occurences of the valid values is analyzed.</p>
+<pre class="r"><code>mean(!economics.data$property.magnitude.char[
+  !is.na(economics.data$property.magnitude.char)] %in% c(&quot;b&quot;, &quot;k&quot;, &quot;m&quot;))</code></pre>
+<pre><code>## [1] 0.0007356</code></pre>
+<pre class="r"><code>mean(!economics.data$crop.magnitude.char[
+  !is.na(economics.data$crop.magnitude.char)] %in% c(&quot;b&quot;, &quot;k&quot;, &quot;m&quot;))</code></pre>
+<pre><code>## [1] 9.511e-05</code></pre>
+<p>The ratio is small enough to ignore the invalid values.</p>
+<p>Now, the damage represented by the variable <code>[...].damage</code> and the alphabetical magnitude variable <code>[...].magnitude.char</code> can be converted into actual damage values. The calculated damage values are stored in the corresponding variable <code>[...].damage</code> again.</p>
+<pre class="r"><code>economics.data$property.damage &lt;- 
+  apply(economics.data[, c(&quot;property.damage&quot;, &quot;property.magnitude.char&quot;)],
+        1, function(x) {          
+          switch(x[2],
+                 k={as.numeric(x[1]) * 10^3},
+                 m={as.numeric(x[1]) * 10^6},
+                 b={as.numeric(x[1]) * 10^9},
+                 {as.numeric(x[1])})
+          })
+economics.data$crop.damage &lt;- 
+  apply(economics.data[, c(&quot;crop.damage&quot;, &quot;crop.magnitude.char&quot;)],
+        1, function(x) {
+          switch(x[2],
+                 k={as.numeric(x[1]) * 10^3},
+                 m={as.numeric(x[1]) * 10^6},
+                 b={as.numeric(x[1]) * 10^9},
+                 {as.numeric(x[1])})
+          })</code></pre>
+<p>In a last step, the overall damage values are stored into a new variable called <code>economics.damage</code>.</p>
+<pre class="r"><code>economics.data$economics.damage &lt;- 
+  rowSums(economics.data[, c(&quot;property.damage&quot;, &quot;crop.damage&quot;)])</code></pre>
+</div>
+</div>
 <div id="processing-health-and-economics-data" class="section level3">
 <h3>Processing health and economics data</h3>
-<p>To investigate the two questions, two separate sub-datasets will be created and separately examined. But before that, the common variable <code>EVTYPE</code> is analyzed.</p>
-<div id="processing-common-data" class="section level4">
-<h4>Processing common data</h4>
-<p>After a first look at the values of <code>EVTYPE</code> (the values won’t be displayed here to retain clearness) it turns out, that the values are string formatted. Furthermore some of them contains leading or double whitespaces or consist of only capital letters. To simplify the future usage of this variable, unnecessary whitespaces are stripped and all letters are converted to lowercase. Additionally, nondescriptive characters like slashes or dashes are also deleted. This gets rid of some duplicated event types.</p>
-<pre class="r"><code>num.of.levels = nrow(levels(storm.data$EVTYPE))
-storm.data$EVTYPE = tolower(sub(&quot;^[[:space:]]*(.*?)[[:space:]]*$&quot;, &quot;\\1&quot;, 
-                            storm.data$EVTYPE, perl=TRUE))
-storm.data$EVTYPE = gsub(&quot;[&amp;[:punct:]]&quot;, &quot; &quot;, storm.data$EVTYPE)
-storm.data$EVTYPE = factor(gsub(&quot;[[:space:]]{2,}&quot;, &quot; &quot;, 
-                                storm.data$EVTYPE, perl=TRUE))
-cat(sprintf(&quot;Deleted %d duplicates&quot;, 
-            num.of.levels - nrow(levels(storm.data$EVTYPE))))</code></pre>
-</div>
-<div id="processing-health-data" class="section level4">
-<h4>Processing health data</h4>
-<pre class="r"><code>health.data &lt;- storm.data[, c(&quot;EVTYPE&quot;, &quot;FATALITIES&quot;, &quot;INJURIES&quot;)]</code></pre>
-</div>
-<div id="processing-economics-data" class="section level4">
-<h4>Processing economics data</h4>
-<pre class="r"><code>economics.data &lt;- storm.data[, c(&quot;EVTYPE&quot;, &quot;PROPDMG&quot;, &quot;PROPDMGEXP&quot;, 
-                                 &quot;CROPDMG&quot;, &quot;CROPDMGEXP&quot;)]</code></pre>
-</div>
+<p>After loading and cleaning up the data, the data can be processed to answer the question mentioned at the beginning of this report. Therefore the injuries and fatalities, as well as the economic damage are aggregated by the event type.</p>
+<pre class="r"><code>health.impact &lt;- aggregate(health.damage ~ event.type, 
+                           health.data, sum)
+economics.impact &lt;- aggregate(economics.damage ~ event.type, 
+                              economics.data, sum)</code></pre>
+<p>The aggregated data is now ordered decreasing by the amount of damage.</p>
+<pre class="r"><code>health.impact &lt;- health.impact[order(health.impact$health.damage, 
+                                     decreasing=TRUE), ]
+row.names(health.impact) &lt;- seq_len(nrow(health.impact))
+                                    
+economics.impact &lt;- economics.impact[order(economics.impact$economics.damage, 
+                                           decreasing=TRUE), ]
+row.names(economics.impact) &lt;- seq_len(nrow(economics.impact))</code></pre>
 </div>
 </div>
 <div id="results" class="section level2">
 <h2>Results</h2>
-</div>
+<p><strong>Question 1: Across the United States, which types of events are most harmful with respect to population health?</strong></p>
+<p>The following table show the 20 most harmful storm events. The first column describes the event, the second column contains the amount of “damage”. In this case, damage means injuries and fatalities.</p>
+<pre class="r"><code>library(xtable)
+print(xtable(head(health.impact, n=20)), type=&quot;html&quot;)</code></pre>
+<!-- html table generated in R 3.1.1 by xtable 1.7-3 package -->
+<!-- Wed Aug 20 12:58:07 2014 -->
+<TABLE border="1">
+<TR> <TH>  </TH> <TH> 
+event.type
+</TH> <TH> 
+health.damage
+</TH>  </TR>
+  <TR> <TD align="right"> 
+1
+</TD> <TD> 
+tornado
+</TD> <TD align="right"> 
+96979.00
+</TD> </TR>
+  <TR> <TD align="right"> 
+2
+</TD> <TD> 
+thunderstorm wind
+</TD> <TD align="right"> 
+9082.00
+</TD> </TR>
+  <TR> <TD align="right"> 
+3
+</TD> <TD> 
+excessive heat
+</TD> <TD align="right"> 
+8428.00
+</TD> </TR>
+  <TR> <TD align="right"> 
+4
+</TD> <TD> 
+flood
+</TD> <TD align="right"> 
+7259.00
+</TD> </TR>
+  <TR> <TD align="right"> 
+5
+</TD> <TD> 
+lightning
+</TD> <TD align="right"> 
+6047.00
+</TD> </TR>
+  <TR> <TD align="right"> 
+6
+</TD> <TD> 
+heat
+</TD> <TD align="right"> 
+3037.00
+</TD> </TR>
+  <TR> <TD align="right"> 
+7
+</TD> <TD> 
+flash flood
+</TD> <TD align="right"> 
+2755.00
+</TD> </TR>
+  <TR> <TD align="right"> 
+8
+</TD> <TD> 
+ice storm
+</TD> <TD align="right"> 
+2064.00
+</TD> </TR>
+  <TR> <TD align="right"> 
+9
+</TD> <TD> 
+winter storm
+</TD> <TD align="right"> 
+1527.00
+</TD> </TR>
+  <TR> <TD align="right"> 
+10
+</TD> <TD> 
+high wind
+</TD> <TD align="right"> 
+1385.00
+</TD> </TR>
+  <TR> <TD align="right"> 
+11
+</TD> <TD> 
+hail
+</TD> <TD align="right"> 
+1376.00
+</TD> </TR>
+  <TR> <TD align="right"> 
+12
+</TD> <TD> 
+hurricane typhoon
+</TD> <TD align="right"> 
+1339.00
+</TD> </TR>
+  <TR> <TD align="right"> 
+13
+</TD> <TD> 
+heavy snow
+</TD> <TD align="right"> 
+1148.00
+</TD> </TR>
+  <TR> <TD align="right"> 
+14
+</TD> <TD> 
+wildfire
+</TD> <TD align="right"> 
+986.00
+</TD> </TR>
+  <TR> <TD align="right"> 
+15
+</TD> <TD> 
+thunderstorm winds
+</TD> <TD align="right"> 
+982.00
+</TD> </TR>
+  <TR> <TD align="right"> 
+16
+</TD> <TD> 
+blizzard
+</TD> <TD align="right"> 
+906.00
+</TD> </TR>
+  <TR> <TD align="right"> 
+17
+</TD> <TD> 
+fog
+</TD> <TD align="right"> 
+796.00
+</TD> </TR>
+  <TR> <TD align="right"> 
+18
+</TD> <TD> 
+rip current
+</TD> <TD align="right"> 
+600.00
+</TD> </TR>
+  <TR> <TD align="right"> 
+19
+</TD> <TD> 
+wild forest fire
+</TD> <TD align="right"> 
+557.00
+</TD> </TR>
+  <TR> <TD align="right"> 
+20
+</TD> <TD> 
+heat wave
+</TD> <TD align="right"> 
+551.00
+</TD> </TR>
+   </TABLE>
+
+<p><br /> <br /></p>
+<p><strong>Question 2: Across the United States, which types of events have the greatest economic consequences?</strong></p>
+<p>Below are the top 20 storm events displayed that have the greatest economic consequences across the United States. As before, the first column describes the event. The second column states the amount of economics damage in Dollar.</p>
+<pre class="r"><code>print(xtable(head(economics.impact, n=20)), type=&quot;html&quot;)</code></pre>
+<!-- html table generated in R 3.1.1 by xtable 1.7-3 package -->
+<!-- Wed Aug 20 12:58:07 2014 -->
+<TABLE border="1">
+<TR> <TH>  </TH> <TH> 
+event.type
+</TH> <TH> 
+economics.damage
+</TH>  </TR>
+  <TR> <TD align="right"> 
+1
+</TD> <TD> 
+flood
+</TD> <TD align="right"> 
+150319678257.00
+</TD> </TR>
+  <TR> <TD align="right"> 
+2
+</TD> <TD> 
+hurricane typhoon
+</TD> <TD align="right"> 
+71913712800.00
+</TD> </TR>
+  <TR> <TD align="right"> 
+3
+</TD> <TD> 
+tornado
+</TD> <TD align="right"> 
+57352114048.70
+</TD> </TR>
+  <TR> <TD align="right"> 
+4
+</TD> <TD> 
+storm surge
+</TD> <TD align="right"> 
+43323541000.00
+</TD> </TR>
+  <TR> <TD align="right"> 
+5
+</TD> <TD> 
+hail
+</TD> <TD align="right"> 
+18758221520.70
+</TD> </TR>
+  <TR> <TD align="right"> 
+6
+</TD> <TD> 
+flash flood
+</TD> <TD align="right"> 
+17562679167.10
+</TD> </TR>
+  <TR> <TD align="right"> 
+7
+</TD> <TD> 
+drought
+</TD> <TD align="right"> 
+15018672000.00
+</TD> </TR>
+  <TR> <TD align="right"> 
+8
+</TD> <TD> 
+hurricane
+</TD> <TD align="right"> 
+14610229010.00
+</TD> </TR>
+  <TR> <TD align="right"> 
+9
+</TD> <TD> 
+river flood
+</TD> <TD align="right"> 
+10148404500.00
+</TD> </TR>
+  <TR> <TD align="right"> 
+10
+</TD> <TD> 
+ice storm
+</TD> <TD align="right"> 
+8967041360.00
+</TD> </TR>
+  <TR> <TD align="right"> 
+11
+</TD> <TD> 
+thunderstorm wind
+</TD> <TD align="right"> 
+8945033179.00
+</TD> </TR>
+  <TR> <TD align="right"> 
+12
+</TD> <TD> 
+tropical storm
+</TD> <TD align="right"> 
+8382236550.00
+</TD> </TR>
+  <TR> <TD align="right"> 
+13
+</TD> <TD> 
+winter storm
+</TD> <TD align="right"> 
+6715441251.00
+</TD> </TR>
+  <TR> <TD align="right"> 
+14
+</TD> <TD> 
+high wind
+</TD> <TD align="right"> 
+5908617595.00
+</TD> </TR>
+  <TR> <TD align="right"> 
+15
+</TD> <TD> 
+wildfire
+</TD> <TD align="right"> 
+5060586800.00
+</TD> </TR>
+  <TR> <TD align="right"> 
+16
+</TD> <TD> 
+storm surge tide
+</TD> <TD align="right"> 
+4642038000.00
+</TD> </TR>
+  <TR> <TD align="right"> 
+17
+</TD> <TD> 
+hurricane opal
+</TD> <TD align="right"> 
+3191846000.00
+</TD> </TR>
+  <TR> <TD align="right"> 
+18
+</TD> <TD> 
+wild forest fire
+</TD> <TD align="right"> 
+3108626330.00
+</TD> </TR>
+  <TR> <TD align="right"> 
+19
+</TD> <TD> 
+heavy rain severe weather
+</TD> <TD align="right"> 
+2500000000.00
+</TD> </TR>
+  <TR> <TD align="right"> 
+20
+</TD> <TD> 
+thunderstorm winds
+</TD> <TD align="right"> 
+1926702811.20
+</TD> </TR>
+   </TABLE>
+
+<p><br /> <br /></p>
+<p>As the results show, some of the event types are duplicates, differing only in the plural suffix (e.g. “thunderstorm wind” and “thunderstorm winds”). Therefore, the optimizations mentioned in the chapter “Cleaning up common data” would improve the performance of the results.</p>
 </div>
 
 

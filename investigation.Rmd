@@ -5,9 +5,6 @@ date: "17. August 2014"
 output: html_document
 ---
 
-Impact of storms on health and economics across the United States
-=================================================================
-
 Synopsis
 --------
 This report tries to find the impact of different storm events on population
@@ -17,7 +14,9 @@ U.S. National Oceanic and Atmospheric Administration is used to identify:
 * the most harmful events with respect to population health and
 * the events with the greatest economic consequences. 
 
-???TODO???
+The results show, that tornados are by far the most harmful events with respect 
+to population health. In contrast the greatest economic consequences are
+caused by floods. 
 
 Data loading and processing
 ---------------------------
@@ -42,7 +41,7 @@ November 2011.
 ### Reading in the data
 In a first step, the raw data obtained in the previous step is read in. 
 The data in the uncompressed file is a comma separated file. The first row is a header line. Missing values are simply left out. 
-```{r}
+```{r, cache=TRUE}
 storm.data <- read.csv(file.name, na.strings="")
 ```
 After reading in the data, the number of observations and variables are obtained
@@ -71,12 +70,12 @@ describe the economic consequences (see chapter 2.7 of the SDD)
 The last variable needed is named `EVTYPE` as stated in the description of the
 peer assessement.
 
-### Processing health and economics data
+### Cleaning up health and economics data
 
 To investigate the two questions, two separate sub-datasets will be created and
 separately examined. But before that, the common variable `EVTYPE` is analyzed.
 
-#### Processing common data
+#### Cleaning up common data
 After a first look at the values of `EVTYPE` (the values won't be displayed 
 here so the report doesn't get overfilled) it turns out, that the values 
 are string formatted. 
@@ -110,7 +109,7 @@ There are many more posibilities to consolidate the event types, e.g.:
 But due to shortage of time, this isn't part of this report. But in my opinion,
 it is definetly an issue for further researches.
 
-#### Processing health data
+#### Cleaning up health data
 ```{r}
 health.data <- storm.data[, c("EVTYPE", "FATALITIES", "INJURIES")]
 names(health.data) <- c("event.type", "fatalities", "injuries")
@@ -131,7 +130,7 @@ For another more in-depth research, they should be kept
 separate or they should be weighted differently before they are summed up. 
 At least in my opinion a fatality is more severe than only an injury.
 
-#### Processing economics data
+#### Cleaning up economics data
 ```{r}
 economics.data <- storm.data[, c("EVTYPE", "PROPDMG", "PROPDMGEXP", 
                                  "CROPDMG", "CROPDMGEXP")]
@@ -192,7 +191,7 @@ Now, the damage represented by the variable `[...].damage` and the
 alphabetical magnitude variable `[...].magnitude.char` can be converted into 
 actual damage values. The calculated damage values are stored
 in the corresponding variable `[...].damage` again.
-```{r}
+```{r, cache=TRUE}
 economics.data$property.damage <- 
   apply(economics.data[, c("property.damage", "property.magnitude.char")],
         1, function(x) {          
@@ -220,12 +219,13 @@ economics.data$economics.damage <-
   rowSums(economics.data[, c("property.damage", "crop.damage")])
 ```
 
-Results
--------
-After the data loading and processing, the results can be created. Therefore
-the injuries and fatalities, as well as the economic damage are aggregated
-by the event type.
-```{r}
+
+### Processing health and economics data
+After loading and cleaning up the data, the data can be processed to answer the
+question mentioned at the beginning of this report.
+Therefore the injuries and fatalities, as well as the economic damage are 
+aggregated by the event type.
+```{r, cache=TRUE}
 health.impact <- aggregate(health.damage ~ event.type, 
                            health.data, sum)
 economics.impact <- aggregate(economics.damage ~ event.type, 
@@ -236,6 +236,67 @@ The aggregated data is now ordered decreasing by the amount of damage.
 ```{r}
 health.impact <- health.impact[order(health.impact$health.damage, 
                                      decreasing=TRUE), ]
+row.names(health.impact) <- seq_len(nrow(health.impact))
+                                    
 economics.impact <- economics.impact[order(economics.impact$economics.damage, 
                                            decreasing=TRUE), ]
+row.names(economics.impact) <- seq_len(nrow(economics.impact))
 ```
+
+Results
+-------
+**Question 1: Across the United States, which types of events are most harmful 
+with respect to population health?**
+
+The following table show the 20 most harmful storm events. The first column 
+describes the event, the second column contains the amount of "damage". In this
+case, damage means injuries and fatalities.
+```{r, results="asis"}
+library(xtable)
+print(xtable(head(health.impact, n=20)), type="html")
+```
+
+<br />
+<br />
+
+**Question 2: Across the United States, which types of events have the greatest 
+economic consequences?**
+
+Below are the top 20 storm events displayed that have the greatest economic
+consequences across the United States.
+As before, the first column describes the event. The second column states the
+amount of economics damage in Dollar.
+```{r, results="asis"}
+print(xtable(head(economics.impact, n=20)), type="html")
+```
+
+<br />
+<br />
+
+As the results show, some of the event types are duplicates, differing only in
+the plural suffix (e.g. "thunderstorm wind" and "thunderstorm winds"). Others
+might be handled as contextual identical (e.g. "excessive heat" 
+and "heat wave").
+Therefore, the optimizations mentioned in the chapter "Cleaning up common data"
+would improve the performance of the results. 
+
+The following graph shows the connection between the top event types regarding
+population health harm and economics consequences. This way, you can get an idea
+of the event types that might cause great damage to both "damage types".
+To keep the graph clear, the legend is not displayed. But both the "Health" and
+the "Economics" column are ordered as in the corresponding tables above.
+```{r}
+library(ggplot2)
+plot.data <- data.frame(pos=seq(from=20, to=1), 
+                        health.event.type=health.impact$event.type[1:20],
+                        economics.event.type=economics.impact$event.type[1:20])
+plot.data <- melt(plot.data, id.vars=1)
+print(g <- ggplot(data=plot.data, aes(variable, pos, group=value, colour=value)) 
+      + geom_point(size=5, pch=20, alpha=0.5) 
+      + geom_line()
+      + scale_x_discrete(labels=c("Health", "Economics"))
+      + scale_y_continuous(breaks=seq(from=1, to=20), 
+                           labels=seq(from=20, to=1))
+      + theme(legend.position="none"))
+```
+
