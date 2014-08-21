@@ -16,7 +16,8 @@ U.S. National Oceanic and Atmospheric Administration is used to identify:
 
 The results show, that tornados are by far the most harmful events with respect 
 to population health. In contrast the greatest economic consequences are
-caused by floods. 
+caused by floods. It was also possible to show, that both tornados and floods 
+have great impact on both population health and economics.
 
 Data loading and processing
 ---------------------------
@@ -287,16 +288,21 @@ To keep the graph clear, the legend is not displayed. But both the "Health" and
 the "Economics" column are ordered as in the corresponding tables above.
 ```{r}
 library(ggplot2)
-plot.data <- data.frame(pos=seq(from=20, to=1), 
+library(reshape2)
+plot.data <- data.frame(pos=seq(from=20, to=1),  # reverse scale y
                         health.event.type=health.impact$event.type[1:20],
                         economics.event.type=economics.impact$event.type[1:20])
 plot.data <- melt(plot.data, id.vars=1)
 print(g <- ggplot(data=plot.data, aes(variable, pos, group=value, colour=value)) 
       + geom_point(size=5, pch=20, alpha=0.5) 
       + geom_line()
-      + scale_x_discrete(labels=c("Health", "Economics"))
-      + scale_y_continuous(breaks=seq(from=1, to=20), 
-                           labels=seq(from=20, to=1))
+      + scale_x_discrete(name="Type of damage", labels=c("Health", "Economics"))
+      + scale_y_continuous(name="Position", breaks=seq(from=1, to=20), 
+                           labels=seq(from=20, to=1))  # reverse scale y
       + theme(legend.position="none"))
 ```
+
+As the plot shows, tornado and flood events are in the top 4 of both damage 
+types. This might help to decide, on what event types actions should be taken 
+for reducing the damage caused by these events.
 
